@@ -1,4 +1,4 @@
-# My React & Express Project in SQL Database
+# My React & Express Project in Sequelize ORM SQL Database
 
 This project is a full-stack application built with React for the frontend and Express for the backend. The application supports user authentication, CRUD operations for posts, and more.
 

@@ -10,17 +10,19 @@ exports.protect = (req, res, next) => {
     token = req.headers.authorization.split(" ")[1];
   }
 
-  if (!token)
+  if (!token) {
     return res.status(401).json({ message: "Not authorized, no token" });
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // console.log("Decoded Token:", decoded);
     req.user = decoded;
     next();
   } catch (error) {
-    // console.error("Token verification error:", error);
-    res.status(401).json({ message: "Token is not valid" });
+    if (error.name === "TokenExpiredError") {
+      res.status(401).json({ message: "Token expired" });
+    } else {
+      res.status(401).json({ message: "Token is not valid" });
+    }
   }
-  // console.log("Generated Token:", token);
 };

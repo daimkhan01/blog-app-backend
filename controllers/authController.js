@@ -1,38 +1,23 @@
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
-const pool = require("../db/db");
+const authService = require("../Services/AuthServices");
+const {
+  signUpSchema,
+  loginSchema,
+} = require("../controllers/validationSchemas");
 
-// Sign up user
 exports.signUp = async (req, res) => {
-  const { name, email, password } = req.body;
-
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    await signUpSchema.validate(req.body, { abortEarly: false });
 
-    const [result] = await pool.query(
-      "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-      [name, email, hashedPassword]
-    );
+    const { name, email, password } = req.body;
 
-    // JWT token with the user ID
-    const token = jwt.sign(
-      { id: result.insertId, name },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      }
-    );
+    const result = await authService.signUpUser(name, email, password);
 
-    res.status(201).json({
-      user: {
-        id: result.insertId,
-        name,
-        email,
-      },
-      token,
-    });
+    res.status(201).json(result);
   } catch (error) {
-    if (error.code === "ER_DUP_ENTRY") {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.errors });
+    }
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({ message: "Email already exists" });
     }
     console.error(error);
@@ -40,37 +25,22 @@ exports.signUp = async (req, res) => {
   }
 };
 
-// Log in user
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
-    const [user] = await pool.query("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
+    await loginSchema.validate(req.body, { abortEarly: false });
 
-    if (!user.length || !(await bcrypt.compare(password, user[0].password))) {
+    const { email, password } = req.body;
+
+    const result = await authService.loginUser(email, password);
+
+    res.status(200).json(result);
+  } catch (error) {
+    if (error.message === "Incorrect email or password") {
       return res.status(401).json({ message: "Incorrect email or password" });
     }
-
-    // JWT token with the user ID
-    const token = jwt.sign(
-      { id: user[0].id, name: user[0].name },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      }
-    );
-
-    res.status(200).json({
-      user: {
-        id: user[0].id,
-        name: user[0].name,
-        email: user[0].email,
-      },
-      token,
-    });
-  } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.errors });
+    }
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
